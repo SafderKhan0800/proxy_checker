@@ -1,5 +1,5 @@
 # proxy_checker
-💻 The ULTIMATE Proxy Checking Tool for Cybersecurity Professionals &amp; Ethical Hackers!  🚀 Features: ✅ Supports HTTP, HTTPS, SOCKS4, SOCKS5 
+💻 The ULTIMATE Proxy Checking Tool for Cybersecurity Professionals &amp; black hat Hackers!  🚀 Features: ✅ Supports HTTP, HTTPS, SOCKS4, SOCKS5 
 
 HOW TO USE COMMANDS !
 
