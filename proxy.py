@@ -1,42 +1,23 @@
-#!/usr/bin/env python3
-# ADVANCED PROXY CHECKER - SHADOW NETWORKS
-
 import os
 import sys
 import time
-import requests
 import concurrent.futures
-from socket import socket, AF_INET, SOCK_STREAM
-from urllib.parse import urlparse
+import requests
+import threading
+from collections import defaultdict
 
 class Colors:
-    RED = '\033[91m'
     GREEN = '\033[92m'
+    RED = '\033[91m'
     YELLOW = '\033[93m'
-    BLUE = '\033[94m'
     CYAN = '\033[96m'
     WHITE = '\033[97m'
     END = '\033[0m'
 
-BANNER = f"""{Colors.RED}
-  ██████  ██▓  ▄████  ███▄ ▄███▓ ▄▄▄        ▄████  ██░ ██  ▒█████    ██████ ▄▄▄█████▓
-▒██    ▒ ▓██▒ ██▒ ▀█▒▓██▒▀█▀ ██▒▒████▄     ██▒ ▀█▒▓██░ ██▒▒██▒  ██▒▒██    ▒ ▓  ██▒ ▓▒
-░ ▓██▄   ▒██▒▒██░▄▄▄░▓██    ▓██░▒██  ▀█▄  ▒██░▄▄▄░▒██▀▀██░▒██░  ██▒░ ▓██▄   ▒ ▓██░ ▒░
-  ▒   ██▒░██░░▓█  ██▓▒██    ▒██ ░██▄▄▄▄██ ░▓█  ██▓░▓█ ░██ ▒██   ██░  ▒   ██▒░ ▓██▓ ░ 
-▒██████▒▒░██░░▒▓███▀▒▒██▒   ░██▒ ▓█   ▓██▒░▒▓███▀▒░▓█▒░██▓░ ████▓▒░▒██████▒▒  ▒██▒ ░ 
-▒ ▒▓▒ ▒ ░░▓   ░▒   ▒ ░ ▒░   ░  ░ ▒▒   ▓▒█░ ░▒   ▒  ▒ ░░▒░▒░ ▒░▒░▒░ ▒ ▒▓▒ ▒ ░  ▒ ░░   
-░ ░▒  ░ ░ ▒ ░  ░   ░ ░  ░      ░  ▒   ▒▒ ░  ░   ░  ▒ ░▒░ ░  ░ ▒ ▒░ ░ ░▒  ░ ░    ░    
-░  ░  ░   ▒ ░░ ░   ░ ░      ░     ░   ▒   ░ ░   ░  ░  ░░ ░░ ░ ░ ▒  ░  ░  ░    ░      
-      ░   ░        ░        ░         ░  ░      ░  ░  ░  ░    ░ ░        ░           
-                                                                                     
-{Colors.END}
-{Colors.RED}[+] SHADOW NETWORKS PROXY CHECKER
-{Colors.RED}[+] CREATED BY WILLIAM - BLACK HAT EDITION
-{Colors.RED}[!] WARNING: USE RESPONSIBLY - UNAUTHORIZED ACCESS LLEGAL{Colors.END}
-"""
-
 class ProxyChecker:
-    def __init__(self):
+    def __init__(self, timeout=10, test_url='https://ipinfo.io/json'):
+        self.timeout = timeout
+        self.test_url = test_url
         self.checked_proxies = {
             'http': [],
             'https': [],
@@ -44,133 +25,97 @@ class ProxyChecker:
             'socks5': [],
             'dead': 0
         }
-        self.timeout = 10
-        self.test_url = "https://ipinfo.io/json"
-        self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
+        self.lock = threading.Lock()
+        self.proxy_stats = defaultdict(int)
 
     def print_banner(self):
-        print(BANNER)
+        banner = f"""
+{Colors.CYAN}
+██████╗ ██████╗  ██████╗ ██╗  ██╗██╗   ██╗
+██╔══██╗██╔══██╗██╔═══██╗╚██╗██╔╝╚██╗ ██╔╝
+██████╔╝██████╔╝██║   ██║ ╚███╔╝  ╚████╔╝ 
+██╔═══╝ ██╔══██╗██║   ██║ ██╔██╗   ╚██╔╝  
+██║     ██║  ██║╚██████╔╝██╔╝ ██╗   ██║   
+╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝   
+{Colors.END}"""
+        print(banner)
+        print(f"{Colors.YELLOW}Proxy Checker v2.0 | Made with <3{Colors.END}\n")
 
-    def check_proxy(self, proxy):
+    def _test_proxy(self, proxy, protocol):
         try:
-            protocol, proxy = self.parse_proxy(proxy)
-            if not protocol:
-                return
-
-            if protocol in ['http', 'https']:
-                return self.check_http_proxy(proxy, protocol)
-            elif protocol in ['socks4', 'socks5']:
-                return self.check_socks_proxy(proxy, protocol)
-                
-        except Exception as e:
-            self.checked_proxies['dead'] += 1
-            return False
-
-    def parse_proxy(self, proxy):
-        if '://' not in proxy:
-            proxy = f"http://{proxy}"
-            
-        parsed = urlparse(proxy)
-        protocol = parsed.scheme.lower()
-        netloc = parsed.netloc
-        
-        if '@' in netloc:
-            auth, host = netloc.split('@', 1)
-        else:
-            auth, host = None, netloc
-            
-        if ':' in host:
-            host, port = host.split(':', 1)
-        else:
-            port = 8080
-            
-        return protocol, f"{host}:{port}" if not auth else f"{auth}@{host}:{port}"
-
-    def check_http_proxy(self, proxy, protocol):
-        proxies = {
-            "http": f"{protocol}://{proxy}",
-            "https": f"{protocol}://{proxy}"
-        }
-        
-        try:
-            start = time.time()
-            response = requests.get(self.test_url, 
-                                   proxies=proxies,
-                                   headers=self.headers,
-                                   timeout=self.timeout)
-            latency = int((time.time() - start) * 1000)
-            
-            if response.status_code == 200:
-                ip_data = response.json()
-                print(f"{Colors.GREEN}[+] LIVE {protocol.upper()} {proxy} | {ip_data['country']} | {latency}ms{Colors.END}")
-                self.checked_proxies[protocol].append(proxy)
-                return True
-        except:
-            self.checked_proxies['dead'] += 1
-            print(f"{Colors.RED}[-] DEAD {proxy}{Colors.END}")
-            return False
-
-    def check_socks_proxy(self, proxy, protocol):
-        try:
-            host, port = proxy.split(':')
-            if '@' in host:
-                auth, host = host.split('@')
-                user, password = auth.split(':')
+            # Parse authentication and host
+            if '@' in proxy:
+                auth, hostport = proxy.split('@', 1)
+                user, password = auth.split(':', 1)
+                host, port = hostport.rsplit(':', 1)
             else:
                 user, password = None, None
+                host, port = proxy.rsplit(':', 1)
 
-            sock = socket(AF_INET, SOCK_STREAM)
-            sock.settimeout(self.timeout)
-            sock.connect((host, int(port)))
+            # Build proxy URL
+            if protocol in ['http', 'https']:
+                scheme = protocol
+                proxy_url = f"{scheme}://{host}:{port}"
+                if user and password:
+                    proxy_url = f"{scheme}://{user}:{password}@{host}:{port}"
+            else:  # SOCKS
+                scheme = 'socks5' if protocol == 'socks5' else 'socks4'
+                proxy_url = f"{scheme}://{host}:{port}"
+                if user and password:
+                    proxy_url = f"{scheme}://{user}:{password}@{host}:{port}"
+
+            proxies = {'http': proxy_url, 'https': proxy_url}
+            start_time = time.time()
             
-            if protocol == 'socks4':
-                socks_proto = 0x01
-            else:
-                socks_proto = 0x02
-                
-            # SOCKS handshake
-            sock.sendall(bytes([0x05, 0x01, 0x00]))
-            auth_response = sock.recv(2)
+            # Test proxy connection
+            response = requests.get(
+                self.test_url,
+                proxies=proxies,
+                timeout=self.timeout
+            )
             
-            if auth_response == bytes([0x05, 0x00]):
-                # Request connection to test URL
-                sock.sendall(bytes([0x05, 0x01, 0x00, 0x03, len(host.encode())]) + host.encode() + bytes([int(port) >> 8, int(port) & 0xff]))
-                response = sock.recv(10)
+            if response.status_code == 200:
+                latency = int((time.time() - start_time) * 1000)
+                ip_data = response.json()
+                country = ip_data.get('country', 'Unknown')
                 
-                if response[1] == 0x00:
-                    start = time.time()
-                    test_response = requests.get(self.test_url,
-                                                proxies={'http': f"socks5://{proxy}"},
-                                                timeout=self.timeout)
-                    latency = int((time.time() - start) * 1000)
-                    ip_data = test_response.json()
-                    print(f"{Colors.GREEN}[+] LIVE {protocol.upper()} {proxy} | {ip_data['country']} | {latency}ms{Colors.END}")
+                with self.lock:
                     self.checked_proxies[protocol].append(proxy)
-                    return True
-        except:
-            self.checked_proxies['dead'] += 1
-            print(f"{Colors.RED}[-] DEAD {proxy}{Colors.END}")
+                    print(f"{Colors.GREEN}[+] LIVE {protocol.upper()} {proxy} | {country} | {latency}ms{Colors.END}")
+                return True
+                
+        except Exception as e:
             return False
-        finally:
-            sock.close()
+
+    def check_proxy(self, proxy):
+        found_valid = False
+        protocols = ['http', 'https', 'socks4', 'socks5']
+        
+        for protocol in protocols:
+            if self._test_proxy(proxy, protocol):
+                found_valid = True
+                self.proxy_stats[protocol] += 1
+            else:
+                self.proxy_stats['dead'] += 1
+                
+        if not found_valid:
+            with self.lock:
+                print(f"{Colors.RED}[-] DEAD {proxy}{Colors.END}")
 
     def save_proxies(self):
-        if not os.path.exists('checked_proxies'):
-            os.makedirs('checked_proxies')
-            
+        os.makedirs('checked_proxies', exist_ok=True)
         for protocol in ['http', 'https', 'socks4', 'socks5']:
-            with open(f'checked_proxies/{protocol}_proxies.txt', 'w') as f:
-                f.write('\n'.join(self.checked_proxies[protocol]))
+            if self.checked_proxies[protocol]:
+                with open(f'checked_proxies/{protocol}_proxies.txt', 'w') as f:
+                    f.write('\n'.join(self.checked_proxies[protocol]))
 
     def show_stats(self):
         print(f"\n{Colors.CYAN}=== CHECKING STATISTICS ===")
-        print(f"{Colors.WHITE}HTTP Proxies: {Colors.GREEN}{len(self.checked_proxies['http'])}")
-        print(f"{Colors.WHITE}HTTPS Proxies: {Colors.GREEN}{len(self.checked_proxies['https'])}")
-        print(f"{Colors.WHITE}SOCKS4 Proxies: {Colors.GREEN}{len(self.checked_proxies['socks4'])}")
-        print(f"{Colors.WHITE}SOCKS5 Proxies: {Colors.GREEN}{len(self.checked_proxies['socks5'])}")
-        print(f"{Colors.WHITE}Dead Proxies: {Colors.RED}{self.checked_proxies['dead']}{Colors.END}")
+        print(f"{Colors.WHITE}HTTP Proxies:   {Colors.GREEN}{self.proxy_stats['http']}")
+        print(f"{Colors.WHITE}HTTPS Proxies:  {Colors.GREEN}{self.proxy_stats['https']}")
+        print(f"{Colors.WHITE}SOCKS4 Proxies: {Colors.GREEN}{self.proxy_stats['socks4']}")
+        print(f"{Colors.WHITE}SOCKS5 Proxies: {Colors.GREEN}{self.proxy_stats['socks5']}")
+        print(f"{Colors.WHITE}Dead Checks:    {Colors.RED}{self.proxy_stats['dead']}{Colors.END}")
 
     def start_check(self, proxy_file):
         if not os.path.exists(proxy_file):
@@ -180,13 +125,15 @@ class ProxyChecker:
         with open(proxy_file, 'r') as f:
             proxies = [line.strip() for line in f if line.strip()]
 
-        print(f"\n{Colors.YELLOW}[*] Starting proxy check with {len(proxies)} proxies...{Colors.END}")
+        print(f"\n{Colors.YELLOW}[*] Checking {len(proxies)} proxies...{Colors.END}")
+        start_time = time.time()
         
-        with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=100) as executor:
             executor.map(self.check_proxy, proxies)
             
         self.save_proxies()
         self.show_stats()
+        print(f"{Colors.YELLOW}\n[!] Completed in {time.time()-start_time:.2f} seconds{Colors.END}")
 
 if __name__ == "__main__":
     checker = ProxyChecker()
