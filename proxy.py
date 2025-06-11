@@ -39,7 +39,7 @@ class ProxyChecker:
 ╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝   
 {Colors.END}"""
         print(banner)
-        print(f"{Colors.YELLOW}Proxy Checker v2.0 | Made with <3{Colors.END}\n")
+        print(f"{Colors.YELLOW}Proxy Checker v2.0 | Made with Black hat Edition{Colors.END}\n")
 
     def _test_proxy(self, proxy, protocol):
         try:
