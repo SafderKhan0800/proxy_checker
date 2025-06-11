@@ -3,10 +3,10 @@
 
 HOW TO USE COMMANDS !
 
-pip install requests
-pip install pysocks
+command ===> pip install requests
+command ===> pip install pysocks
 
-python3 proxy_checker.py your_proxies_list.txt
+command ===> python3 proxy_checker.py your_proxies_list.txt
 
 📝 How to Use:
 Prepare Proxy List
