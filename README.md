@@ -4,6 +4,7 @@
 HOW TO USE COMMANDS !
 
 pip install requests
+pip install pysocks
 
 python3 proxy_checker.py your_proxies_list.txt
 
